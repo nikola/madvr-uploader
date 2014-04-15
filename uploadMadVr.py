@@ -6,6 +6,7 @@ __copyright__ = "Copyright (c) 2014 Nikola Klaric"
 
 import os
 import sys
+from hashlib import sha1 as SHA1
 from cStringIO import StringIO
 from ftplib import FTP
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -18,6 +19,7 @@ FTP_USERNAME = 'bob'
 FTP_PASSWORD = '$ecret'
 FTP_ZIP_DIR = '/home/bob/zip'
 FTP_VERSION_DIR = '/home/bob/version'
+FTP_HASH_DIR = '/home/bob/hash'
 
 MADVR_FILE_ROOT = r'C:\Users\Default\Downloads\madVR'
 MADVR_FILES = [
@@ -66,7 +68,7 @@ MADVR_FILES = [
 
 if __name__ == '__main__':
     # Unbuffered console output.
-    sys.stdout = os.fdopen(sys.stdout.fileno(), "w", 0)
+    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 
     sys.stdout.write('Adding files to ZIP archive ...')
     madVrZip = StringIO()
@@ -76,8 +78,14 @@ if __name__ == '__main__':
     madVrZip.seek(0)
     sys.stdout.write(' done.\n')
 
-    madVrVersion = pefile.PE(os.path.join(MADVR_FILE_ROOT, 'madVR.ax')).FileInfo[0].StringTable[0].entries['ProductVersion']
+    madVrVersion = pefile.PE(data=open(os.path.join(MADVR_FILE_ROOT, 'madVR.ax'), 'rb').read()) \
+        .FileInfo[0].StringTable[0].entries['ProductVersion']
     sys.stdout.write('Product version: %s\n' % madVrVersion)
+
+    sha1 = SHA1()
+    sha1.update(madVrZip.getvalue())
+    madVrHash = sha1.hexdigest()
+    sys.stdout.write('SHA1: %s\n' % madVrHash)
 
     ftp = FTP(FTP_SERVER)
     try:
@@ -94,7 +102,12 @@ if __name__ == '__main__':
         ftp.cwd(FTP_VERSION_DIR)
         ftp.storbinary('STOR version.txt',  StringIO(madVrVersion))
         sys.stdout.write(' done.\n')
+
+        sys.stdout.write('Storing sha1.txt in %s ...' % FTP_HASH_DIR)
+        ftp.cwd(FTP_HASH_DIR)
+        ftp.storbinary('STOR sha1.txt',  StringIO(madVrHash))
+        sys.stdout.write(' done.\n')
     finally:
         ftp.close()
 
-    sys.stdout.write('No errors.')
+    sys.stdout.write('No errors.\n')
